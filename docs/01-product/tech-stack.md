@@ -1,89 +1,103 @@
 # ResumeGenius 技术栈建议
 
-更新时间：2026-04-22
+更新时间：2026-04-23
 
 ## 1. 选型原则
 
 - 以 5 人全栈并行开发为前提
 - 优先稳定、文档成熟、易于招人和协作的栈
-- Python 负责解析、Agent、渲染链路
-- Web 端负责对话工作区、人工工作台、预览入口
+- 部署目标为 2C2G 低配服务器，Docker Compose 一键部署
+- Go 负责全部后端逻辑，零 Python 运行时依赖
+- 前端拆分：营销站（SEO）+ 工作台（高性能交互）
 
 ## 2. 推荐技术栈
 
 ### 2.1 前端
 
-- `Next.js + React + TypeScript`
+**营销站（SEO 优先）：**
+
+- `Astro`
+- 构建产物为纯静态 HTML，默认零 JS
+- 适合落地页、功能介绍、定价、帮助文档等需要搜索引擎收录的页面
+
+**工作台（交互优先）：**
+
+- `Vite + React + TypeScript`
 - UI 层使用 `Tailwind CSS`
 - 组件基底可用 `shadcn/ui`
 
 推荐原因：
 
-- 适合同时承载对话区、工作台、项目页和预览页
+- Astro 是当前营销站最佳实践，SEO 满分，几乎不占服务器内存
+- Vite 相比 Next.js 不需要 Node.js 运行时，Docker 镜像极小（~30MB）
 - React 对复杂交互和局部刷新控制更成熟
 - TypeScript 有利于和后端协议联调
 
+部署方式：同一个 nginx 容器，`/` 路由到 Astro 产物，`/app/*` 路由到 Vite SPA 产物。
+
 ### 2.2 后端
 
-- `FastAPI + Pydantic`
-- 数据访问层使用 `SQLAlchemy 2.0`
+- `Gin + Go`
+- 数据访问层使用 `GORM`
 
 推荐原因：
 
-- Python 对文档解析、OCR、模型调用、LaTeX 编译链路更顺手
-- Pydantic 适合承载强约束协议模型和 JSON Schema 导出
-- SQLAlchemy 2.0 足够成熟，适合后续从 demo 过渡到正式工程
+- Go 单二进制部署，内存占用 ~50MB，2C2G 服务器友好
+- Gin 高性能 HTTP 框架，适合 API 服务
+- GORM 成熟的 Go ORM，支持 PostgreSQL
+- 文档解析用 Go 原生库（`ledongthuc/pdf`、`nguyenthenguyen/docx`），无需 Python 运行时
+- AI 对话通过 HTTP 调用智谱 API，不依赖 Python ML 框架
 
 ### 2.3 数据存储
 
-- 主库：`PostgreSQL`
+- 主库：`PostgreSQL` >= 15
 - 对象存储：本地文件系统起步，后续可切到 S3 兼容存储
 
 主库建议存：
 
-- 项目
-- 资料元信息
-- 草稿状态
-- revision 记录
-- patch 记录
+- 项目（projects）
+- 资产元信息（assets）
+- 草稿 HTML（drafts）
+- 版本快照（versions）
+- AI 对话（ai_sessions、ai_messages）
 
 ### 2.4 异步任务
 
-v1 demo 建议分两层：
+v1 用 Go 原生 goroutine + channel 处理异步任务：
 
-- 先用 `FastAPI BackgroundTasks` 跑通慢任务
-- 如果解析、OCR、LaTeX 编译开始阻塞，再上独立 worker + 队列
+- AI 初稿生成（5-15 秒）
+- PDF 导出（chromedp，2-5 秒）
 
-适合异步化的任务：
-
-- 文件解析
-- OCR
-- Git 仓库抽取
-- 初始简历生成
-- PDF 编译
+如果任务量增长，后续可升级为独立 worker + Redis 队列。
 
 ### 2.5 文档解析
 
-- PDF：`PyMuPDF`
-- DOCX：`python-docx`
-- 图片/OCR：`PaddleOCR`
+- PDF：`github.com/ledongthuc/pdf`（纯 Go，文本提取 + 图片提取）
+- DOCX：`github.com/nguyenthenguyen/docx`（纯 Go，段落/表格/样式提取）
+- 图片 OCR：v1 先不做本地 OCR，扫描件场景后续通过云端 API（阿里云 OCR）兜底
 
 ### 2.6 Agent 层
 
 - 模型调用建议做 `Provider Adapter`，避免业务代码直接绑死单一模型
-- v1 文本主链路保留你 PRD 里的 `GLM-5 / GLM-5-Turbo` 假设
+- v1 文本主链路保留 GLM-5 / GLM-5-Turbo 假设
+- 通过 HTTP API 调用智谱，不依赖 Python SDK
+- Prompt / Skill / 工具调用均在 Go 侧自行实现
+- AI 对话使用 SSE（Server-Sent Events）流式响应
 - 先不引入 VLM 主链路
 
 ### 2.7 渲染导出
 
-- 结构解算：Python 服务内完成
-- 模板输出：LaTeX
-- PDF 编译：TeX Live 或兼容发行版
+- chromedp（Go 原生库，控制 Chromium）
+- 按需启动 Chromium 进程
+- 以固定 A4 尺寸渲染 HTML → 调用 page.PrintToPDF() → 返回 PDF
+- 并发控制：同一时间只允许一个导出任务
+- 导出完成后释放 Chromium 进程（临时增加 ~300MB 内存，2-5 秒后释放）
 
 ## 3. 不建议的做法
 
-- 不建议前后端都用 Node，把解析/OCR/LaTeX 硬塞进 JS 生态
-- 不建议 v1 就做富文本自由编辑器
+- 不建议引入 Python 运行时（增加部署复杂度和内存开销）
+- 不建议用 Next.js（需要 Node.js 运行时，2C2G 下不划算）
+- 不建议用 LaTeX / TeX Live（镜像 1-5GB，部署重，编译慢）
 - 不建议一开始就引入微服务
 - 不建议先做 VLM 主链路
 
@@ -91,29 +105,43 @@ v1 demo 建议分两层：
 
 ### 最小可跑版本
 
-- 前端：Next.js
-- 后端：FastAPI
+- 前端营销站：Astro（纯静态）
+- 前端工作台：Vite + React（纯静态）
+- 后端：Gin（Go 单二进制）
 - DB：PostgreSQL
-- 解析：PyMuPDF / python-docx / PaddleOCR
-- 导出：LaTeX
+- 解析：ledongthuc/pdf + nguyenthenguyen/docx
+- 导出：chromedp
+
+### 部署架构
+
+```yaml
+# docker-compose.yml
+services:
+  nginx:          # Astro + Vite 静态文件托管 + API 反代，~10MB
+  gin:            # Go API 服务，~50MB
+  postgres:       # 数据库，~500MB
+```
+
+三个容器，`docker-compose up` 一键启动，总内存 ~560MB（空闲），2C2G 完全够用。
 
 ### 升级点
 
 如果 demo 验证通过，再考虑增加：
 
-- Redis 队列
-- 独立 worker
-- 对象存储
+- Redis 队列 + 独立 worker
+- 对象存储（S3 兼容）
+- 云端 OCR API（覆盖扫描件场景）
 - 更完整的监控与日志
 
 ## 5. 参考资料
 
-- Next.js App Router 文档：https://nextjs.org/docs/app
-- FastAPI Background Tasks：https://fastapi.tiangolo.com/tutorial/background-tasks/
-- Pydantic JSON Schema：https://docs.pydantic.dev/dev/concepts/json_schema/
-- SQLAlchemy 2.0 Overview：https://docs.sqlalchemy.org/20/intro.html
-- PyMuPDF 文档：https://pymupdf.readthedocs.io/
-- python-docx 文档：https://python-docx.readthedocs.io/
-- PaddleOCR Layout Analysis：https://www.paddleocr.ai/latest/en/version3.x/module_usage/layout_analysis.html
+- Gin 文档：https://gin-gonic.com/docs/
+- GORM 文档：https://gorm.io/docs/
+- chromedp 文档：https://github.com/chromedp/chromedp
+- ledongthuc/pdf 文档：https://github.com/ledongthuc/pdf
+- nguyenthenguyen/docx 文档：https://github.com/nguyenthenguyen/docx
+- Astro 文档：https://docs.astro.build/
+- Vite 文档：https://vitejs.dev/
 - Tailwind CSS 安装文档：https://tailwindcss.com/docs/installation/tailwind-cli
 - shadcn/ui 文档：https://ui.shadcn.com/docs
+- TipTap 文档：https://tiptap.dev/

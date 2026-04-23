@@ -1,243 +1,220 @@
-# 模块 E 契约：状态管理与渲染导出
+# 模块 E 契约：版本管理与 PDF 导出
+
+更新时间：2026-04-23
 
 ## 1. 角色定义
 
 **负责**：
 
-- 接收 Patch 并应用到 ResumeDraftState（唯一修改状态的入口）
-- Patch 校验（原子性、版本冲突检测）
-- 版本记录（RevisionRecord）
-- 撤销/回退
-- ResumeDraftState → ResolvedResumeSpec 解算
-- LaTeX 模板填充 + PDF 编译
-- 预览生成
+- HTML 快照版本管理
+- 版本列表（版本号 + 时间 + 标签）
+- 回退：将历史快照加载回编辑器
+- PDF 导出（chromedp 服务端渲染）
+- 导出权限校验（商业化预留）
 
 **不负责**：
 
-- 生成 Patch（C 或 D 的事）
-- 文件解析（B 的事）
+- HTML 编辑（D 的事）
 - AI 对话（C 的事）
-- 编辑器 UI（D 的事）
+- 文件解析（B 的事）
 
 ## 2. 输入契约
 
-| 数据 | 来源 | Mock fixture |
+| 数据 | 来源 | 说明 |
 |---|---|---|
-| `ResumeDraftState` | 模块 B（初始）/ 自身（更新后） | `fixtures/resume_draft_state.json` |
-| `PatchEnvelope(source=agent)` | 模块 C | `fixtures/patch_agent.json` |
-| `PatchEnvelope(source=manual)` | 模块 D | `fixtures/patch_manual.json` |
+| `drafts.html_content` | 模块 D | 当前编辑器 HTML |
 
 ## 3. 输出契约
 
-### 3.1 新的 ResumeDraftState
+### 3.1 版本快照
 
-Patch 应用后生成的新草稿状态。每应用一个 Patch，revision +1。
+每次保存或 AI 修改确认后，自动创建 HTML 快照存入 versions 表。
 
-### 3.2 ResolvedResumeSpec
+一份 HTML 约 5-10KB。
 
-从 ResumeDraftState 解算出的确定性渲染对象。Schema 见 [core-data-model.md](../../02-data-models/core-data-model.md) §7。
+### 3.2 PDF 文件
 
-Mock fixture：`fixtures/resolved_resume_spec.json`
-
-### 3.3 PDF 文件
-
-LaTeX 编译后的最终输出。
+chromedp 以 A4 尺寸渲染 HTML → `page.PrintToPDF()` → 返回 PDF 二进制流。
 
 ## 4. API 端点
 
 遵循 [api-conventions.md](../../01-product/api-conventions.md)。
 
-### 4.1 状态管理端点
-
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/render/apply-patch` | 应用 Patch |
-| GET | `/api/v1/render/drafts/{draft_id}` | 获取最新草稿状态 |
-| GET | `/api/v1/render/drafts/{draft_id}/revisions` | 获取版本历史 |
-| POST | `/api/v1/render/drafts/{draft_id}/rollback` | 回退到指定版本 |
-
-### 4.2 渲染导出端点
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/v1/render/resolve` | 触发解算（异步） |
-| GET | `/api/v1/render/tasks/{task_id}` | 查询解算/编译状态 |
-| POST | `/api/v1/render/preview` | 生成预览 |
-| POST | `/api/v1/render/pdf` | 触发 PDF 编译（异步） |
-| GET | `/api/v1/render/pdfs/{task_id}/download` | 下载 PDF |
+| GET | `/api/v1/drafts/{id}/versions` | 版本列表 |
+| POST | `/api/v1/drafts/{id}/versions` | 手动创建快照 |
+| POST | `/api/v1/drafts/{id}/rollback` | 回退到指定版本 |
+| POST | `/api/v1/drafts/{id}/export` | 导出 PDF |
 
 ### 关键端点详情
 
-#### POST /api/v1/render/apply-patch
+#### GET /api/v1/drafts/{id}/versions
 
 ```
-Request:
-{
-  ... 完整 PatchEnvelope ...
-}
-
-Response (成功):
+Response:
 {
   "code": 0,
   "data": {
-    "draft_id": "draft_03",
-    "revision": 13,
-    "summary": "压缩项目经历并收紧整体段距"
+    "items": [
+      {
+        "id": 1,
+        "label": "AI 初始生成",
+        "created_at": "2026-04-23T20:00:00Z"
+      },
+      {
+        "id": 2,
+        "label": "手动保存",
+        "created_at": "2026-04-23T20:10:00Z"
+      },
+      {
+        "id": 3,
+        "label": "AI 修改：精简项目经历",
+        "created_at": "2026-04-23T20:15:00Z"
+      }
+    ],
+    "total": 3
   }
-}
-
-Response (版本冲突):
-{
-  "code": 04003,
-  "data": null,
-  "message": "版本冲突：当前最新版本为 13，Patch 基于版本 12"
 }
 ```
 
-#### POST /api/v1/render/resolve
+#### POST /api/v1/drafts/{id}/versions
+
+手动创建一个快照。
 
 ```
 Request:
 {
-  "draft_id": "draft_03",
-  "revision": 13
+  "label": "精简版"
 }
 
 Response:
 {
   "code": 0,
   "data": {
-    "task_id": "task_resolve_01",
-    "status": "pending"
+    "id": 4,
+    "label": "精简版",
+    "created_at": "2026-04-23T20:20:00Z"
   }
 }
 ```
 
-#### POST /api/v1/render/pdf
+#### POST /api/v1/drafts/{id}/rollback
+
+将指定版本快照加载回编辑器。
 
 ```
 Request:
 {
-  "draft_id": "draft_03",
-  "revision": 13
+  "version_id": 1
 }
 
 Response:
 {
   "code": 0,
   "data": {
-    "task_id": "task_pdf_01",
-    "status": "pending"
+    "html_snapshot": "<!DOCTYPE html>...该版本的 HTML..."
   }
 }
 ```
 
-## 5. Patch 应用流程
+#### POST /api/v1/drafts/{id}/export
+
+导出 PDF。
 
 ```
-接收 PatchEnvelope
-       │
-       ▼
-  base_revision 校验 ── 失败 ──▶ 返回 04003 版本冲突
-       │
-    成功
-       │
-       ▼
-  逐个校验 TargetRef ── 失败 ──▶ 返回 04002 节点不存在
-       │
-    成功
-       │
-       ▼
-  逐个校验 value 范围 ── 失败 ──▶ 返回 04001 值越界
-       │
-    成功
-       │
-       ▼
-  执行全部 ops（内存中）
-       │
-       ▼
-  生成新 ResumeDraftState (revision +1)
-       │
-       ▼
-  写入 RevisionRecord
-       │
-       ▼
-  持久化新 ResumeDraftState
-       │
-       ▼
-  返回成功
+Request:
+{
+  "html_content": "<!DOCTYPE html>...当前编辑器 HTML..."
+}
+
+Response: application/pdf (binary)
 ```
 
-## 6. 解算流程
+v1 不做权限校验，直接返回 PDF。后续商业化时添加付费校验（40300）。
 
-ResumeDraftState → ResolvedResumeSpec：
+## 5. 版本自动创建
 
-1. 读取当前 ResumeDraftState
-2. 将 `style` 中的意图型参数映射为确定性数值
-3. 将 `content` 中的 section 结构展平为 block 列表
-4. 补全页面参数（margin、page size）
-5. 生成 `render_tokens`（LaTeX 模板变量映射）
-6. 输出 ResolvedResumeSpec
+以下操作自动创建版本快照：
 
-## 7. LaTeX 渲染流程
+| 触发 | 来源 | label |
+|---|---|---|
+| AI 初稿生成 | 模块 B | "AI 初始生成" |
+| AI 对话修改确认 | 模块 C | "AI 修改：{用户需求摘要}" |
+| 用户手动保存 | 模块 D | "手动保存" |
 
-1. 读取 ResolvedResumeSpec
-2. 填充 LaTeX 模板（Jinja2 或字符串替换）
-3. 写入 .tex 文件
-4. 调用 TeX Live 编译
-5. 返回 PDF 文件路径
+自动创建通过调用 `POST /api/v1/drafts/{id}/versions` 实现。
 
-## 8. 依赖与边界
+## 6. chromedp PDF 导出流程
+
+```
+接收 HTML
+     │
+     ▼
+校验导出权限 ── 失败 ──▶ 返回 40300
+     │
+   成功
+     │
+     ▼
+检查并发锁 ── 已占用 ──▶ 返回 05003 排队中
+     │
+   空闲
+     │
+     ▼
+启动 Chromium 实例
+     │
+     ▼
+设置 A4 尺寸页面
+     │
+     ▼
+加载 HTML
+     │
+     ▼
+调用 page.PrintToPDF()
+     │
+     ▼
+返回 PDF 二进制流
+     │
+     ▼
+释放 Chromium 进程
+```
+
+并发控制：同一时间只允许一个导出任务，其余排队等待。
+
+## 7. 依赖与边界
 
 ### 上游
 
-- 模块 C 产出 `PatchEnvelope(source=agent)`
-- 模块 D 产出 `PatchEnvelope(source=manual)`
-- 模块 B 产出初始 `ResumeDraftState`
+- 模块 D 更新 drafts.html_content
 
 ### 下游
 
-- 用户（下载 PDF、查看预览）
+- 用户（下载 PDF、查看版本历史）
 
 ### 可 mock 的边界
 
-- **不需要 C/D 的服务**：直接读 `fixtures/patch_agent.json` 和 `fixtures/patch_manual.json`
-- **不需要 B 的服务**：直接读 `fixtures/resume_draft_state.json`
-- **LaTeX 编译**：开发时可以用预设 PDF 文件替代真实编译，只测试解算逻辑
-- **数据库**：可以用 SQLite 内存库替代 PostgreSQL
+- 不需要其他模块的服务
+- PDF 导出可用预设 PDF 文件替代真实 chromedp
 
-## 9. 错误码
+## 8. 错误码
 
 | 错误码 | HTTP | 含义 |
 |---|---|---|
-| 05001 | 500 | LaTeX 编译失败 |
-| 05002 | 500 | 解算失败（参数无法确定化） |
-| 05003 | 404 | 草稿不存在 |
+| 05001 | 500 | PDF 导出失败 |
+| 05002 | 404 | 草稿不存在 |
+| 05003 | 409 | 导出任务排队中 |
 | 05004 | 404 | 版本不存在 |
-| 05005 | 409 | 版本冲突（乐观锁） |
-| 05006 | 400 | Patch 校验失败 |
 
-## 10. 测试策略
+## 9. 测试策略
 
 ### 独立测试
 
-- 用 `fixtures/resume_draft_state.json` 作为初始草稿
-- 用 `fixtures/patch_agent.json` 测试 Patch 应用流程
-- 用 `fixtures/patch_manual.json` 测试 Patch 应用流程
-- 测试版本冲突场景（连续两个 Patch 使用同一 base_revision）
-- 测试回退功能
-- 解算逻辑用单元测试覆盖
-- LaTeX 编译可用预设 PDF mock，先只测解算输出
-
-### Mock 产出
-
-确保解算产出的 `ResolvedResumeSpec` JSON 符合 schema，可作为 LaTeX 模板的输入验证。
+- 版本创建和列表用内存测试
+- PDF 导出可用预设 PDF mock，先测试流程
+- 有 Chromium 环境时测试完整导出
 
 ### 前端测试
 
-- PDF 预览组件（用预设 PDF 渲染）
 - 版本历史列表
 - 回退确认弹窗
 - 导出下载按钮
-
-前端可以用 mock PDF 文件测试预览，不需要等 E 后端完成 LaTeX 编译。

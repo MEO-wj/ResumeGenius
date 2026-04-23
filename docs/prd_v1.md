@@ -132,15 +132,15 @@ VLM 仅作为可选兜底，不启动也能完成功能。
 
 #### PDF
 
-优先用原生解析提取文本块、页、坐标、图像等信息。PyMuPDF 官方定位就是高性能 PDF 等文档的提取、分析和转换工具。
+优先用原生解析提取文本块、页、坐标、图像等信息。`ledongthuc/pdf` 是纯 Go 的 PDF 解析库，支持文本提取和内嵌图片提取，适合简历场景。
 
 #### DOCX
 
-优先提取段落、字符、表格和样式信息。`python-docx` 官方文档明确支持段落、字符、表格样式等对象级处理。
+优先提取段落、字符、表格和样式信息。`nguyenthenguyen/docx` 是纯 Go 的 DOCX 解析库，支持段落、表格和样式的结构化读取。
 
 #### 图片
 
-优先走 OCR + 版面分析。PaddleOCR 的 layout analysis 模块用于检测文本段落、标题、图片、表格等元素并恢复阅读顺序。
+v1 优先引导用户上传文本 PDF 或 DOCX，暂不本地处理图片 OCR。扫描件场景后续通过云端 OCR API（如阿里云 OCR）兜底。
 
 #### 可选兜底：VLM
 
@@ -412,9 +412,9 @@ LaTeX 负责：
 
 ### 10.2文档解析工具
 
--  PDF：PyMuPDF  
--  DOCX：python-docx  
--  图片/OCR：PaddleOCR layout analysis  
+-  PDF：ledongthuc/pdf（纯 Go）
+-  DOCX：nguyenthenguyen/docx（纯 Go）
+-  图片 OCR：v1 暂不本地处理，后续通过云端 API 兜底  
 
 ------
 

@@ -1,6 +1,6 @@
 # ResumeGenius API 规约
 
-更新时间：2026-04-22
+更新时间：2026-04-23
 
 本文档定义所有模块的统一 API 规范。所有模块必须遵循此规约，不得自行定义冲突规则。
 
@@ -9,7 +9,7 @@
 ### 1.1 风格
 
 - RESTful API，JSON 序列化
-- HTTP 方法语义：GET 读取、POST 创建、PUT 全量更新、PATCH 部分更新、DELETE 删除
+- HTTP 方法语义：GET 读取、POST 创建、PUT 全量更新、DELETE 删除
 
 ### 1.2 版本
 
@@ -33,16 +33,16 @@
 
 | 模块 | 前缀 | 示例 |
 |---|---|---|
-| A 资料接入 | `/api/v1/assets/` | `POST /api/v1/assets/upload` |
+| A 项目管理 | `/api/v1/projects/` | `GET /api/v1/projects/{id}` |
+| A 资产管理 | `/api/v1/assets/` | `POST /api/v1/assets/upload` |
 | B 解析与初稿 | `/api/v1/parsing/` | `POST /api/v1/parsing/parse` |
-| C Agent 编辑 | `/api/v1/agent/` | `POST /api/v1/agent/chat` |
-| D 人工工作台 | `/api/v1/workbench/` | `PATCH /api/v1/workbench/content` |
-| E 渲染导出 | `/api/v1/render/` | `POST /api/v1/render/pdf` |
-| 项目管理 | `/api/v1/projects/` | `GET /api/v1/projects/{id}` |
+| C AI 对话 | `/api/v1/ai/` | `POST /api/v1/ai/sessions/{id}/chat` |
+| D 草稿编辑 | `/api/v1/drafts/` | `GET /api/v1/drafts/{id}` |
+| E 版本导出 | `/api/v1/drafts/{id}/` | `POST /api/v1/drafts/{id}/export` |
 
 ### 2.2 命名规则
 
-- 路径用小写 + 短横线：`/source-asset`
+- 路径用小写 + 短横线：`/ai-sessions`
 - 资源名用复数：`/projects`、`/drafts`
 - 路径参数用单数：`/projects/{project_id}`
 - ID 类参数带 `_id` 后缀：`project_id`、`draft_id`
@@ -101,7 +101,7 @@
 | 40000 | 400 | 请求参数错误 |
 | 40001 | 400 | 数据校验失败 |
 | 40100 | 401 | 未认证（v1 预留） |
-| 40300 | 403 | 无权限（v1 预留） |
+| 40300 | 403 | 无权限（v1 预留，用于 PDF 导出权限控制） |
 | 40400 | 404 | 资源不存在 |
 | 40900 | 409 | 资源冲突 |
 | 50000 | 500 | 服务内部错误 |
@@ -112,9 +112,9 @@
 |---|---|---|
 | A 资料接入 | 01xxx | 01001 = 文件格式不支持 |
 | B 解析与初稿 | 02xxx | 02001 = PDF 解析失败 |
-| C Agent 编辑 | 03xxx | 03001 = 模型调用超时 |
-| D 人工工作台 | 04xxx | 04001 = 参数值越界 |
-| E 渲染导出 | 05xxx | 05001 = LaTeX 编译失败 |
+| C AI 对话 | 03xxx | 03001 = 模型调用超时 |
+| D 草稿编辑 | 04xxx | 04001 = 草稿不存在 |
+| E 版本与导出 | 05xxx | 05001 = PDF 导出失败 |
 
 各模块在 contract.md 中定义自己的错误码明细。
 
@@ -129,18 +129,45 @@
 - v1 不实现认证，所有 API 无需 token
 - 所有请求头预留 `Authorization: Bearer <token>` 位
 - 认证上线后，未携带 token 的请求返回 40100
+- PDF 导出端点预留付费权限校验位（40300）
 
-## 7. 异步任务
+## 7. 流式响应
 
-### 7.1 模式
+### 7.1 SSE 模式（AI 对话）
 
-长时间任务（解析、渲染）采用异步模式：
+AI 对话使用 Server-Sent Events（SSE）流式响应：
+
+```
+POST /api/v1/ai/sessions/{id}/chat
+Accept: text/event-stream
+
+Response:
+data: {"type": "text", "content": "好的，我来帮你..."}
+data: {"type": "text", "content": "建议将项目经历精简为："}
+data: {"type": "html_start"}
+data: {"type": "html_chunk", "content": "<div class=\"resume\">..."}
+data: {"type": "html_end"}
+data: {"type": "done"}
+```
+
+事件类型：
+- `text`：AI 文字说明（逐字流式）
+- `html_start`：HTML 内容开始标记
+- `html_chunk`：HTML 内容片段
+- `html_end`：HTML 内容结束标记
+- `done`：响应完成
+
+## 8. 异步任务
+
+### 8.1 模式
+
+长时间任务（PDF 导出）采用异步模式：
 
 1. 客户端 POST 触发任务
 2. 服务端立即返回任务 ID
 3. 客户端轮询任务状态
 
-### 7.2 任务创建响应
+### 8.2 任务创建响应
 
 ```json
 {
@@ -153,9 +180,9 @@
 }
 ```
 
-### 7.3 任务状态查询
+### 8.3 任务状态查询
 
-`GET /api/v1/{module}/tasks/{task_id}`
+`GET /api/v1/tasks/{task_id}`
 
 ```json
 {
@@ -170,15 +197,15 @@
 }
 ```
 
-任务状态枚举：`pending` → `running` → `completed` / `failed`
+任务状态枚举：`pending` → `processing` → `completed` / `failed`
 
-## 8. 请求/字段命名
+## 9. 请求/字段命名
 
 - JSON 字段统一用 `snake_case`：`project_id`、`created_at`
 - 日期时间用 ISO 8601：`2026-04-22T20:00:00Z`
 - 布尔值用 `is_` / `has_` 前缀：`is_visible`、`has_education`
-- 枚举值用 `snake_case`：`source_type = "resume_pdf"`
+- 枚举值用 `snake_case`：`type = "resume_pdf"`
 
-## 9. 各模块 API 端点
+## 10. 各模块 API 端点
 
 详细端点定义见各模块的 `contract.md` 文件。本文档只定义规约，不定义具体端点。

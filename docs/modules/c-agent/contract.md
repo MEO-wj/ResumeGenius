@@ -1,40 +1,56 @@
-# 模块 C 契约：Agent 编辑链路
+# 模块 C 契约：AI 对话助手
+
+更新时间：2026-04-23
 
 ## 1. 角色定义
 
 **负责**：
 
-- 接收用户自然语言需求
-- AI 会话管理（多轮对话）
-- 意图识别（内容修改 / 样式修改 / 混合修改 / 追问）
-- 生成 Agent Patch（`PatchEnvelope` with `source=agent`）
-- 建议展示（SuggestionSet → 用户确认 → Patch）
+- 多轮对话会话管理
+- AI 流式响应（SSE）
+- AI 读取当前简历 HTML 作为上下文
+- AI 返回修改后的完整 HTML
+- 用户确认后替换当前草稿
 
 **不负责**：
 
-- Patch 应用和状态管理（E 的事）
-- 人工工作台交互（D 的事）
-- 渲染和 PDF 导出（E 的事）
 - 文件解析（B 的事）
+- 所见即所得编辑（D 的事）
+- 版本管理和 PDF 导出（E 的事）
 
 ## 2. 输入契约
 
-| 数据 | 来源 | Mock fixture |
+| 数据 | 来源 | 说明 |
 |---|---|---|
-| `ResumeDraftState` | 模块 B | `fixtures/resume_draft_state.json` |
-| `EvidenceSet` | 模块 B | `fixtures/evidence_set.json` |
-| 用户自然语言消息 | 前端输入 | 无需 mock |
+| `drafts.html_content` | 模块 B/D | 当前简历 HTML |
+| 用户自然语言消息 | 前端输入 | — |
+| 对话历史 | `ai_messages` 表 | 最近 N 轮 |
+
+Mock：直接用 `fixtures/sample_draft.html` 作为当前 HTML。
 
 ## 3. 输出契约
 
-产出 `PatchEnvelope`（`source=agent`）。Schema 见 [patch-schema.md](../../02-data-models/patch-schema.md)。
+AI 返回两部分内容：
 
-两种模式：
+1. **自然语言回复**：对用户的文字说明
+2. **修改后的 HTML**：完整的简历 HTML（可直接替换编辑器内容）
 
-- `mode=propose`：建议模式，展示给用户确认后再 apply
-- `mode=apply`：直接应用（用户已确认）
+### AI 消息格式约定
 
-Mock fixture：`fixtures/patch_agent.json`
+assistant 消息的 content 字段格式：
+
+```
+好的，我帮你精简了项目经历部分：
+主要压缩了描述文字，保留核心量化指标。
+
+<!--RESUME_HTML_START-->
+<!DOCTYPE html>...完整 HTML...
+<!--RESUME_HTML_END-->
+```
+
+前端通过 `<!--RESUME_HTML_START-->` 和 `<!--RESUME_HTML_END-->` 分隔符提取 HTML 部分。
+
+如果 AI 没有修改简历（只是回答问题），则不包含 HTML 部分。
 
 ## 4. API 端点
 
@@ -42,82 +58,64 @@ Mock fixture：`fixtures/patch_agent.json`
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/agent/sessions` | 创建对话会话 |
-| GET | `/api/v1/agent/sessions?project_id={id}` | 获取项目的会话列表 |
-| GET | `/api/v1/agent/sessions/{session_id}` | 获取会话信息 |
-| DELETE | `/api/v1/agent/sessions/{session_id}` | 删除会话 |
-| POST | `/api/v1/agent/sessions/{session_id}/chat` | 发送消息 |
-| GET | `/api/v1/agent/sessions/{session_id}/history` | 获取对话历史 |
-| POST | `/api/v1/agent/sessions/{session_id}/confirm` | 确认建议 |
-| POST | `/api/v1/agent/sessions/{session_id}/reject` | 拒绝建议 |
+| POST | `/api/v1/ai/sessions` | 创建对话会话 |
+| POST | `/api/v1/ai/sessions/{id}/chat` | 发送消息（SSE 流式） |
+| GET | `/api/v1/ai/sessions/{id}/history` | 获取对话历史 |
 
 ### 关键端点详情
 
-#### POST /api/v1/agent/sessions
+#### POST /api/v1/ai/sessions
 
 ```
 Request:
 {
-  "project_id": "proj_01",
-  "draft_id": "draft_03"
+  "draft_id": 1
 }
 
 Response:
 {
   "code": 0,
   "data": {
-    "session_id": "sess_01",
-    "project_id": "proj_01",
-    "draft_id": "draft_03",
-    "created_at": "2026-04-22T21:00:00Z"
+    "id": 1,
+    "draft_id": 1,
+    "created_at": "2026-04-23T20:00:00Z"
   }
 }
 ```
 
-#### POST /api/v1/agent/sessions/{session_id}/chat
+#### POST /api/v1/ai/sessions/{id}/chat
+
+SSE 流式响应。
 
 ```
 Request:
 {
-  "message": "帮我把工作经历压缩得更精炼一点",
-  "current_revision": 12
+  "message": "帮我把工作经历压缩得更精炼一点"
 }
 
-Response:
-{
-  "code": 0,
-  "data": {
-    "reply": "我建议将第二条 bullet 精简为量化表述：...",
-    "suggestions": [
-      {
-        "suggestion_id": "sug_01",
-        "type": "content_rewrite",
-        "description": "压缩工作经历第二条 bullet",
-        "patch": { ... PatchEnvelope ... }
-      }
-    ]
-  }
-}
+Response: text/event-stream
+data: {"type": "text", "content": "好的"}
+data: {"type": "text", "content": "，我帮你精简了工作经历"}
+data: {"type": "text", "content": "部分。\n\n"}
+data: {"type": "html_start"}
+data: {"type": "html_chunk", "content": "<!DOCTYPE html><html>..."}
+data: {"type": "html_chunk", "content": "..."}
+data: {"type": "html_end"}
+data: {"type": "done"}
 ```
 
-#### POST /api/v1/agent/sessions/{session_id}/confirm
+SSE 事件类型：
 
-```
-Request:
-{
-  "suggestion_id": "sug_01"
-}
+| type | 说明 |
+|---|---|
+| `text` | AI 文字说明（逐字流式） |
+| `html_start` | HTML 内容开始 |
+| `html_chunk` | HTML 内容片段 |
+| `html_end` | HTML 内容结束 |
+| `error` | 出错 |
+| `done` | 响应完成 |
 
-Response:
-{
-  "code": 0,
-  "data": {
-    "patch": { ... PatchEnvelope with mode=apply ... }
-  }
-}
-```
-
-#### GET /api/v1/agent/sessions?project_id={id}
+#### GET /api/v1/ai/sessions/{id}/history
 
 ```
 Response:
@@ -126,26 +124,19 @@ Response:
   "data": {
     "items": [
       {
-        "session_id": "sess_01",
-        "project_id": "proj_01",
-        "draft_id": "draft_03",
-        "created_at": "2026-04-22T21:00:00Z",
-        "last_message_preview": "帮我把工作经历压缩一点..."
+        "id": 1,
+        "role": "user",
+        "content": "帮我把工作经历压缩得更精炼一点",
+        "created_at": "2026-04-23T20:00:00Z"
+      },
+      {
+        "id": 2,
+        "role": "assistant",
+        "content": "好的，我帮你精简了...\n\n<!--RESUME_HTML_START-->...<!--RESUME_HTML_END-->",
+        "created_at": "2026-04-23T20:00:05Z"
       }
-    ],
-    "total": 1
+    ]
   }
-}
-```
-
-#### DELETE /api/v1/agent/sessions/{session_id}
-
-```
-Response:
-{
-  "code": 0,
-  "data": null,
-  "message": "ok"
 }
 ```
 
@@ -154,51 +145,44 @@ Response:
 ### 5.1 模型
 
 - v1 使用 GLM-5 / GLM-5-Turbo
-- 通过 Provider Adapter 封装，业务代码不直接调用模型 SDK
+- 通过 Provider Adapter 封装
 
 ### 5.2 输入构建
 
-每次 AI 调用需传入：
+每次 AI 调用传入：
 
-- 当前 `ResumeDraftState` 的完整 JSON（让 AI 理解上下文）
-- 对话历史（最近 N 轮）
+- 当前 `drafts.html_content`（完整 HTML）
+- 对话历史（最近 N 轮 user/assistant 消息）
 - 用户当前消息
-- 可选：`EvidenceSet`（需要参考原始资料时）
 
 ### 5.3 输出解析
 
-AI 返回结构化 JSON：
+AI 返回流式文本，后端透传给前端。后端不解析 AI 输出，只负责：
+1. 组装 Prompt
+2. 调用模型 API
+3. 将流式响应透传为 SSE
 
-```json
-{
-  "reply": "给用户的回复文本",
-  "intent": "content_modify | style_modify | mixed | clarification",
-  "suggestions": [
-    {
-      "description": "变更描述",
-      "patch_ops": [ ... PatchOp list ... ]
-    }
-  ]
-}
-```
+HTML 提取由前端负责。
 
-如果 AI 返回格式异常，降级为纯文本回复（不生成 Patch）。
+### 5.4 用户确认替换
+
+用户在 AI 面板点击"应用到简历"后，前端调用模块 D 的 `PUT /api/v1/drafts/{id}` 替换 HTML。模块 C 不负责 HTML 替换。
 
 ## 6. 依赖与边界
 
 ### 上游
 
-- 模块 B 产出 `ResumeDraftState` 和 `EvidenceSet`
+- 模块 B 产出初始 drafts.html_content
+- 模块 D 更新 drafts.html_content
 
 ### 下游
 
-- 模块 E（渲染导出）消费 `PatchEnvelope(source=agent)`
+- 无。模块 C 只负责对话和 AI 调用。
 
 ### 可 mock 的边界
 
-- **不需要 B 的服务**：直接读 `fixtures/resume_draft_state.json`
-- **AI 调用**：用预设 JSON 替代真实 GLM-5 调用，测试对话流程和 Patch 生成逻辑
-- **不需要 E 的服务**：C 只负责产出 Patch，不负责应用
+- AI 调用用 mock handler 替代
+- 不需要 B/D/E 的服务
 
 ## 7. 错误码
 
@@ -206,27 +190,20 @@ AI 返回结构化 JSON：
 |---|---|---|
 | 03001 | 504 | 模型调用超时 |
 | 03002 | 500 | 模型返回格式异常 |
-| 03003 | 400 | 会话不存在 |
-| 03004 | 409 | 当前有未处理的建议，不能发送新消息 |
-| 03005 | 400 | 建议已过期（base_revision 不匹配） |
+| 03003 | 404 | 会话不存在 |
+| 03004 | 400 | 草稿不存在 |
 
 ## 8. 测试策略
 
 ### 独立测试
 
-- 用 `fixtures/resume_draft_state.json` 模拟草稿状态
-- AI 调用用 mock handler 替代（返回预设的 Suggestion JSON）
-- 测试多轮对话流程：消息发送 → 意图识别 → 建议生成 → 确认/拒绝
-- 测试异常场景：模型超时、格式异常、版本冲突
-
-### Mock 产出
-
-确保产出的 `PatchEnvelope` JSON 符合 schema，可直接交给 E 作为测试输入。
+- AI 调用用 mock handler 替代
+- 测试多轮对话流程
+- 测试 SSE 流式响应格式
+- 测试异常场景：模型超时、连接断开
 
 ### 前端测试
 
-- 对话 UI（聊天气泡 + 建议卡片）
-- 确认/拒绝按钮交互
-- Agent 状态展示（思考中、已生成建议等）
-
-前端可以用预设对话 JSON 渲染聊天界面，不需要等 C 后端完成。
+- 对话 UI（聊天气泡）
+- 流式输出显示
+- "应用到简历" / "继续对话"按钮交互
