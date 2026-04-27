@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** 实现 PDF 文本提取和调用 GLM API 生成 HTML 初稿，自动写入 drafts 表并创建版本快照。
+**Goal:** 实现 PDF 文本提取和调用 AI API 生成 HTML 初稿，自动写入 drafts 表并创建版本快照。
 
-**Architecture:** ParsingService 提取 PDF 文本，DraftGenerator 调用 GLM API 生成 HTML。`USE_MOCK=true` 时跳过真实 API 调用，返回 fixture mock 数据。
+**Architecture:** ParsingService 提取 PDF 文本，DraftGenerator 调用 AI API 生成 HTML。`USE_MOCK=true` 时跳过真实 API 调用，返回 fixture mock 数据。
 
-**Tech Stack:** github.com/ledongthuc/pdf / net/http (GLM API) / GORM
+**Tech Stack:** github.com/ledongthuc/pdf / net/http (OpenAI-compatible API) / GORM
 
 **Depends on:** Phase 0 共享基石完成、模块 A 的文件上传
 
@@ -122,7 +122,7 @@ git commit -m "feat(module-b): implement PDF text extraction"
 
 ---
 
-### Task 2: 后端 — AI 初稿生成（GLM API + Mock 模式）
+### Task 2: 后端 — AI 初稿生成（AI API + Mock 模式）
 
 **Files:**
 - Create: `backend/internal/modules/b_parsing/generator_test.go`
@@ -157,7 +157,7 @@ func TestMockGenerateDraft(t *testing.T) {
 
 func TestMockParseResponse(t *testing.T) {
 	mockResp := `{"choices":[{"message":{"content":"<!DOCTYPE html><html><body>mock</body></html>"}}]}`
-	html, err := parseGLMResponse(mockResp)
+	html, err := parseAIResponse(mockResp)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -195,8 +195,8 @@ type DraftGenerator struct {
 func NewDraftGenerator(db *gorm.DB) *DraftGenerator {
 	return &DraftGenerator{
 		db:     db,
-		apiURL: os.Getenv("GLM_API_URL"),
-		apiKey: os.Getenv("GLM_API_KEY"),
+		apiURL: os.Getenv("AI_API_URL"),
+		apiKey: os.Getenv("AI_API_KEY"),
 	}
 }
 
@@ -242,7 +242,7 @@ func (g *DraftGenerator) callAPI(parsedText string) (string, error) {
 4. 只返回 HTML 代码，不要其他解释`
 
 	reqBody, _ := json.Marshal(map[string]interface{}{
-		"model":      "glm-5-turbo",
+		"model":      "default",
 		"messages":   []map[string]string{{"role": "system", "content": systemPrompt}, {"role": "user", "content": parsedText}},
 		"temperature": 0.7,
 	})
@@ -258,10 +258,10 @@ func (g *DraftGenerator) callAPI(parsedText string) (string, error) {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	return parseGLMResponse(string(body))
+	return parseAIResponse(string(body))
 }
 
-func parseGLMResponse(body string) (string, error) {
+func parseAIResponse(body string) (string, error) {
 	var resp struct {
 		Choices []struct {
 			Message struct {
@@ -307,7 +307,7 @@ cd backend && go test ./internal/modules/b_parsing/... -v
 
 ```bash
 git add backend/internal/modules/b_parsing/
-git commit -m "feat(module-b): implement AI draft generation with GLM API + mock mode"
+git commit -m "feat(module-b): implement AI draft generation with AI API + mock mode"
 ```
 
 ---
@@ -543,4 +543,4 @@ git commit -m "feat(module-b): implement parse + generate API endpoints"
 - [ ] `curl "localhost:8080/api/v1/parsing/parse?project_id=1"` 返回解析结果
 - [ ] `curl -X POST "localhost:8080/api/v1/parsing/generate?project_id=1"` 返回 draft_id + html_content
 - [ ] drafts 表有新记录，versions 表有自动快照
-- [ ] `USE_MOCK=false` + 配置 GLM API 环境变量后能调用真实 API
+- [ ] `USE_MOCK=false` + 配置 AI API 环境变量后能调用真实 API

@@ -36,7 +36,7 @@ v2 的核心改变：**HTML 是唯一的数据源**，砍掉所有中间层。
 | PDF 解析 | ledongthuc/pdf（纯 Go） |
 | DOCX 解析 | nguyenthenguyen/docx（纯 Go） |
 | PDF 导出 | chromedp（Go 原生库，按需启动 Chromium） |
-| AI 模型 | GLM-5 / GLM-5-Turbo（HTTP API 调用） |
+| AI 模型 | OpenAI-compatible API（Provider Adapter 解耦） |
 
 ## 4. 系统架构
 

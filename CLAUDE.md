@@ -63,8 +63,8 @@ bun run build                          # 构建纯静态 HTML 到 dist/
 | `DB_PASSWORD` | postgres | 数据库密码 |
 | `DB_NAME` | resume_genius | 数据库名 |
 | `USE_MOCK` | false | AI 调用使用 mock 响应 |
-| `GLM_API_URL` | — | GLM API 地址 |
-| `GLM_API_KEY` | — | GLM API 密钥 |
+| `AI_API_URL` | — | AI 模型 API 地址 |
+| `AI_API_KEY` | — | AI 模型 API 密钥 |
 
 ## 架构：v2（HTML 单一数据源）
 
@@ -124,7 +124,7 @@ Gin 路由分组注册，每个模块统一签名 `func RegisterRoutes(rg *gin.R
 | 数据库 | PostgreSQL >= 15 |
 | PDF 解析 | ledongthuc/pdf / nguyenthenguyen/docx（纯 Go） |
 | PDF 导出 | chromedp |
-| AI 模型 | Deepseek-v4-flash / Deepseek-v4-pro（HTTP API） |
+| AI 模型 | OpenAI-compatible API（Provider Adapter 解耦） |
 | 包管理器 | bun（前端），go mod（后端） |
 
 ## API 规约要点

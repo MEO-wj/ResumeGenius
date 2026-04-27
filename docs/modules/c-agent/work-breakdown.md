@@ -49,7 +49,7 @@
 |---|---|---|
 | 1 | `SessionService` | 会话 CRUD，关联 draft |
 | 2 | `ChatService` | 消息收发，对话历史管理，SSE 流式透传 |
-| 3 | `ProviderAdapter` | AI 模型调用封装（GLM-5 / GLM-5-Turbo），Prompt 构建 |
+| 3 | `ProviderAdapter` | AI 模型调用封装（OpenAI-compatible API），Prompt 构建 |
 
 ### 3.3 后端技术要点
 

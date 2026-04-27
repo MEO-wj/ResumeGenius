@@ -122,7 +122,7 @@
 | 后端 | Gin + Go + GORM |
 | 数据库 | PostgreSQL >= 15 |
 | PDF 导出 | chromedp |
-| AI | GLM-5 / GLM-5-Turbo |
+| AI | OpenAI-compatible API |
 
 ### 5.2 部署
 

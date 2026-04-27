@@ -83,7 +83,7 @@ func mockCreateNote(projectID uint) *Asset {
 
 **自己测试用的 mock**：
 - 模拟 PDF 解析结果（纯文本提取）
-- 模拟 AI 模型返回（不调真实 GLM-5，用预设 HTML 替代）
+- 模拟 AI 模型返回（不调真实 AI API，用预设 HTML 替代）
 
 **产出的 fixture（给 C/D/E 用）**：
 
@@ -210,7 +210,7 @@ TypeScript, React, Go, Node.js, PostgreSQL, Docker`
 **输入 mock（替代 B 的产出）**：直接读 `fixtures/sample_draft.html`
 
 **自己测试用的 mock**：
-- 模拟 AI 模型返回（不调真实 GLM-5，用预设 JSON 替代）
+- 模拟 AI 模型返回（不调真实 AI API，用预设 JSON 替代）
 
 **产出的 fixture**：
 

@@ -120,7 +120,7 @@ graph TB
     end
 
     subgraph AI 与知识库
-        LLM[GLM-5 / GLM-5-Turbo]
+        LLM[AI 模型<br/>OpenAI-compatible API]
         KB[简历最佳实践库<br/>行业前辈经验]
     end
 
@@ -192,7 +192,7 @@ flowchart LR
 | 数据库 | PostgreSQL >= 15 | 成熟稳定，JSONB 支持灵活元数据 |
 | 文件解析 | ledongthuc/pdf + nguyenthenguyen/docx | 纯 Go 实现，无外部运行时依赖 |
 | PDF 导出 | chromedp | 按需启动 Chromium，渲染保真度高 |
-| AI 模型 | GLM-5 / GLM-5-Turbo | HTTP API 调用，Provider Adapter 解耦 |
+| AI 模型 | OpenAI-compatible API | Provider Adapter 解耦，支持任意兼容模型 |
 
 ## 部署方案
 

@@ -94,7 +94,7 @@ flowchart TD
     B --> C[加载对话历史]
 
     C --> D[构建 AI Prompt]
-    D --> E[调用 GLM-5 模型]
+    D --> E[调用 AI 模型]
 
     E --> F{SSE 流式响应}
     F --> G[先输出文字说明]

@@ -79,8 +79,7 @@ v1 用 Go 原生 goroutine + channel 处理异步任务：
 ### 2.6 Agent 层
 
 - 模型调用建议做 `Provider Adapter`，避免业务代码直接绑死单一模型
-- v1 文本主链路保留 GLM-5 / GLM-5-Turbo 假设
-- 通过 HTTP API 调用智谱，不依赖 Python SDK
+- 通过 OpenAI-compatible HTTP API 调用，支持任意兼容模型（Deepseek、GLM 等）
 - Prompt / Skill / 工具调用均在 Go 侧自行实现
 - AI 对话使用 SSE（Server-Sent Events）流式响应
 - 先不引入 VLM 主链路

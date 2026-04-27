@@ -4,9 +4,9 @@
 
 **Goal:** 实现 SSE 流式 AI 对话，AI 能返回带 HTML 标记的简历修改建议，前端可一键应用。
 
-**Architecture:** SessionService 管理会话和消息持久化，ChatService 调用 GLM API 并通过 SSE 流式推送。AI 响应中使用 `<!--RESUME_HTML_START-->` 和 `<!--RESUME_HTML_END-->` 分隔 HTML。
+**Architecture:** SessionService 管理会话和消息持久化，ChatService 调用 AI API 并通过 SSE 流式推送。AI 响应中使用 `<!--RESUME_HTML_START-->` 和 `<!--RESUME_HTML_END-->` 分隔 HTML。
 
-**Tech Stack:** Gin SSE / net/http streaming / GLM API / React EventSource
+**Tech Stack:** Gin SSE / net/http streaming / OpenAI-compatible API / React EventSource
 
 **Depends on:** Phase 0 共享基石完成、模块 D 的 TipTap 编辑器
 
@@ -203,12 +203,12 @@ type ChatService struct {
 func NewChatService(db *gorm.DB) *ChatService {
 	return &ChatService{
 		db:     db,
-		apiURL: os.Getenv("GLM_API_URL"),
-		apiKey: os.Getenv("GLM_API_KEY"),
+		apiURL: os.Getenv("AI_API_URL"),
+		apiKey: os.Getenv("AI_API_KEY"),
 	}
 }
 
-// StreamResponse 流式调用 GLM API，通过 callbacks 推送 SSE 事件
+// StreamResponse 流式调用 AI API，通过 callbacks 推送 SSE 事件
 func (s *ChatService) StreamResponse(sessionID uint, userMessage string, sendEvent func(event string)) error {
 	// 保存用户消息
 	s.db.Create(&models.AIMessage{SessionID: sessionID, Role: "user", Content: userMessage})
@@ -237,7 +237,7 @@ func (s *ChatService) StreamResponse(sessionID uint, userMessage string, sendEve
 	}
 
 	reqBody, _ := json.Marshal(map[string]interface{}{
-		"model":       "glm-5-turbo",
+		"model":       "default",
 		"messages":    apiMessages,
 		"temperature": 0.7,
 		"stream":      true,

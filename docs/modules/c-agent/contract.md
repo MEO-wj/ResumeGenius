@@ -144,7 +144,7 @@ Response:
 
 ### 5.1 模型
 
-- v1 使用 GLM-5 / GLM-5-Turbo
+- v1 通过 Provider Adapter 调用 OpenAI-compatible API
 - 通过 Provider Adapter 封装
 
 ### 5.2 输入构建
