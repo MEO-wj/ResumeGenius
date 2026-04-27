@@ -1,19 +1,71 @@
+# ResumeGenius Docker Compose
+# 统一编排 postgres + backend + workbench + marketing
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET:-10.200.0.0/16}
+
 services:
   postgres:
-    image: docker.1ms.run/ankane/pgvector:latest
+    image: ${PGVECTOR_IMAGE:-docker.1ms.run/ankane/pgvector:latest}
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: resume_genius
+      POSTGRES_DB: ${POSTGRES_DB:-resume_genius}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      TZ: ${TZ:-Asia/Shanghai}
     ports:
-      - "5432:5432"
+      - "${HOST_POSTGRES_PORT:-5432}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-resume_genius}"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
-volumes:
-  pgdata:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        BUILDER_IMAGE: ${GO_BUILDER_IMAGE:-docker.1ms.run/golang:1.25-alpine}
+        RUNTIME_IMAGE: ${ALPINE_RUNTIME_IMAGE:-docker.1ms.run/alpine:3.19}
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_NAME: ${POSTGRES_DB:-resume_genius}
+      USE_MOCK: ${USE_MOCK:-false}
+      AI_API_URL: ${AI_API_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${HOST_BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  workbench:
+    build:
+      context: ./frontend/workbench
+      dockerfile: Dockerfile
+    ports:
+      - "${HOST_WORKBENCH_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: always
+
+  marketing:
+    build:
+      context: ./frontend/marketing
+      dockerfile: Dockerfile
+    ports:
+      - "${HOST_MARKETING_PORT:-4321}:80"
+    restart: always

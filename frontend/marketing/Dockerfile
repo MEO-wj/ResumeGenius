@@ -1,0 +1,13 @@
+FROM docker.1ms.run/node:20-alpine AS builder
+RUN corepack enable && corepack prepare bun@latest --activate
+WORKDIR /app
+COPY package.json bun.lockb* ./
+RUN bun install --frozen-lockfile 2>/dev/null || bun install
+COPY . .
+RUN bun run build
+
+FROM docker.1ms.run/nginx:alpine AS runtime
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
