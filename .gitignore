@@ -1,9 +1,39 @@
+# ===========================
 # Environment
+# ===========================
 .env
 .env.local
+.env.*.local
 
+# ===========================
+# OS
+# ===========================
+.DS_Store
+Thumbs.db
+
+# ===========================
+# Editor / IDE
+# ===========================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ===========================
+# Claude Code
+# ===========================
+.claude
+.superpowers
+
+# ===========================
 # Logs
-logs
+# ===========================
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -11,24 +41,29 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# ===========================
+# Backend (Go)
+# ===========================
+uploads/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/backend/tmp/
+/backend/vendor/
+
+# ===========================
+# Frontend (Node/Bun)
+# ===========================
+node_modules/
+dist/
+dist-ssr/
 *.local
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-
-.claude
-.superpowers
-
-uploads
+# ===========================
+# shadcn/ui cache (regenerate via `bunx shadcn add`)
+# ===========================
+frontend/workbench/@/
