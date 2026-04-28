@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/UN-Self/ResumeGenius/backend/internal/shared/middleware"
 	"github.com/UN-Self/ResumeGenius/backend/internal/shared/response"
-	"gorm.io/gorm"
 )
 
 // Error codes for intake module (01xxx)
@@ -97,7 +96,7 @@ func (h *Handler) GetProject(c *gin.Context) {
 
 	proj, err := h.projectSvc.GetByID(userID(c), uint(id))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, ErrProjectNotFound) {
 			response.Error(c, CodeProjectNotFound, "project not found")
 			return
 		}
