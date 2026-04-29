@@ -129,3 +129,26 @@ export const workbenchApi = {
       body: JSON.stringify({ project_id: projectId }),
     }),
 }
+
+// --- Parsing API ---
+
+export interface ParsedImage {
+  description: string
+  data_base64: string
+}
+
+export interface ParsedContent {
+  asset_id: number
+  type: string
+  label: string
+  text: string
+  images?: ParsedImage[]
+}
+
+export const parsingApi = {
+  parseProject: (projectId: number) =>
+    request<{ parsed_contents: ParsedContent[] }>('/parsing/parse', {
+      method: 'POST',
+      body: JSON.stringify({ project_id: projectId }),
+    }),
+}

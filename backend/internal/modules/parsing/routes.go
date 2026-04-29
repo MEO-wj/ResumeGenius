@@ -7,7 +7,9 @@ import (
 )
 
 func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, store storage.FileStorage) {
-	rg.POST("/parsing/parse", func(c *gin.Context) {
-		c.JSON(200, gin.H{"module": "parsing", "status": "stub"})
-	})
+	pdfParser := NewPDFParser()
+	docxParser := NewDocxParser()
+	service := NewParsingService(db, pdfParser, docxParser, nil, store)
+	handler := NewHandler(service)
+	rg.POST("/parsing/parse", handler.ParseProject)
 }

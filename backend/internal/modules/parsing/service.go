@@ -35,6 +35,21 @@ func NewParsingService(db *gorm.DB, pdfParser PdfParser, docxParser DocxParser, 
 	return svc
 }
 
+// ParseForUser checks project ownership then delegates to Parse.
+func (s *ParsingService) ParseForUser(userID string, projectID uint) ([]ParsedContent, error) {
+	if s.db == nil {
+		return nil, ErrDatabaseNotConfigured
+	}
+	var project models.Project
+	if err := s.db.Select("id").Where("user_id = ? AND id = ?", userID, projectID).Take(&project).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProjectNotFound
+		}
+		return nil, err
+	}
+	return s.Parse(projectID)
+}
+
 // Parse loads a project's assets and aggregates supported parsing results.
 func (s *ParsingService) Parse(projectID uint) ([]ParsedContent, error) {
 	exists, err := s.projectExists(projectID)
@@ -244,5 +259,6 @@ func attachAssetMetadata(asset models.Asset, parsed *ParsedContent) *ParsedConte
 	decorated := *parsed
 	decorated.AssetID = asset.ID
 	decorated.Type = asset.Type
+	decorated.Label = AssetLabel(asset.Label, asset.URI)
 	return &decorated
 }

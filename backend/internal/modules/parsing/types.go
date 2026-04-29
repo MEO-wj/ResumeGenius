@@ -1,6 +1,10 @@
 package parsing
 
-import "errors"
+import (
+	"errors"
+	"path/filepath"
+	"strings"
+)
 
 const (
 	AssetTypeResumePDF   = "resume_pdf"
@@ -31,6 +35,7 @@ type ParsedImage struct {
 type ParsedContent struct {
 	AssetID uint          `json:"asset_id"`
 	Type    string        `json:"type"`
+	Label   string        `json:"label"`
 	Text    string        `json:"text"`
 	Images  []ParsedImage `json:"images,omitempty"`
 }
@@ -45,4 +50,16 @@ type DocxParser interface {
 
 type GitExtractor interface {
 	Extract(repoURL string) (*ParsedContent, error)
+}
+
+// AssetLabel returns a display label for the asset: uses Label if set,
+// otherwise extracts the filename from URI.
+func AssetLabel(label *string, uri *string) string {
+	if label != nil && strings.TrimSpace(*label) != "" {
+		return strings.TrimSpace(*label)
+	}
+	if uri != nil && *uri != "" {
+		return filepath.Base(*uri)
+	}
+	return ""
 }

@@ -104,6 +104,77 @@
   }
 }
 
+/* === Project Workspace — Three-phase grid layout === */
+.workspace {
+  display: grid;
+  height: 100vh;
+  transition: grid-template-columns 300ms ease-in-out;
+}
+
+.workspace.phase-intake {
+  grid-template-columns: 1fr 0 0;
+}
+
+.workspace.phase-parsing,
+.workspace.phase-editing {
+  grid-template-columns: 320px 1fr 360px;
+}
+
+.workspace .panel-left {
+  background: var(--color-card);
+  overflow-y: auto;
+}
+
+.workspace .panel-center {
+  background: var(--color-page-bg);
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  opacity: 0;
+  transition: opacity 400ms ease-in-out 150ms;
+}
+
+.workspace .panel-right {
+  background: var(--color-card);
+  border-left: 1px solid var(--color-divider);
+  overflow-y: auto;
+  opacity: 0;
+  transition: opacity 400ms ease-in-out 200ms;
+}
+
+.workspace.phase-parsing .panel-center,
+.workspace.phase-parsing .panel-right,
+.workspace.phase-editing .panel-center,
+.workspace.phase-editing .panel-right {
+  opacity: 1;
+}
+
+.workspace.phase-editing .panel-center {
+  padding: 0;
+  justify-content: stretch;
+  align-items: stretch;
+}
+
+.workspace .panel-right .ai-panel {
+  border-left: none;
+  width: 100%;
+}
+
+/* Shimmer skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #e8eaed 25%, #f1f3f4 50%, #e8eaed 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Empty State */
 .empty-state {
   display: flex;
