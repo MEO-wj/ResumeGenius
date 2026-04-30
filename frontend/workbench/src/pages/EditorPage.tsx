@@ -12,6 +12,7 @@ import { AiPanelPlaceholder } from '@/components/editor/AiPanelPlaceholder'
 import ParsedSidebar from '@/components/intake/ParsedSidebar'
 import { request, intakeApi, parsingApi, ApiError, type ParsedContent } from '@/lib/api-client'
 import { useAutoSave } from '@/hooks/useAutoSave'
+import { useExport } from '@/hooks/useExport'
 import type { Draft } from '@/types/editor'
 
 
@@ -59,6 +60,15 @@ export default function EditorPage() {
     },
     saveUrl: draftId ? `/api/v1/drafts/${draftId}` : undefined,
   })
+
+  // Export
+  const { exportPdf, status: exportStatus } = useExport()
+
+  const handleExport = () => {
+    if (draftId && editor) {
+      exportPdf(Number(draftId), editor.getHTML())
+    }
+  }
 
   // Effect 1: Load project (route guard) + draft + parsed contents
   useEffect(() => {
@@ -201,6 +211,10 @@ export default function EditorPage() {
           <ActionBar
             projectName={projectTitle}
             saveIndicator={<SaveIndicator status={status} lastSavedAt={lastSavedAt} onRetry={retry} />}
+            draftId={draftId}
+            getHtml={() => editor?.getHTML() ?? ''}
+            exportStatus={exportStatus}
+            onExport={handleExport}
           />
           <div className="flex-1 overflow-auto">
             <A4Canvas editor={editor} />
