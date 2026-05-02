@@ -8,7 +8,8 @@ import (
 )
 
 // RegisterRoutes registers all render module endpoints.
-func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, store storage.FileStorage) {
+// Returns a cleanup function that releases ChromeExporter and ExportService resources.
+func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, store storage.FileStorage) func() {
 	versionSvc := NewVersionService(db)
 
 	exporter := NewChromeExporter()
@@ -26,4 +27,9 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, store storage.FileStorage)
 	rg.POST("/drafts/:draft_id/export", h.CreateExport)
 	rg.GET("/tasks/:task_id", h.GetTask)
 	rg.GET("/tasks/:task_id/file", h.DownloadFile)
+
+	return func() {
+		exporter.Close()
+		exportSvc.Close()
+	}
 }

@@ -47,6 +47,7 @@ services:
       JWT_TTL_HOURS: ${JWT_TTL_HOURS:-8760}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       TZ: ${TZ:-Asia/Shanghai}
+      CHROME_BIN: "/usr/bin/chromium"
     ports:
       - "${HOST_BACKEND_PORT:-8080}:8080"
     depends_on:

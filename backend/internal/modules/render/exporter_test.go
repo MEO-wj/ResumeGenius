@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -196,6 +197,16 @@ func TestGetFile_TaskNotFound(t *testing.T) {
 	require.ErrorIs(t, err, ErrTaskNotFound)
 }
 
+func TestNewChromeExporter_RespectsChromeBinEnv(t *testing.T) {
+	t.Setenv("CHROME_BIN", "/usr/bin/my-custom-chrome")
+
+	exporter := NewChromeExporter()
+	defer exporter.Close()
+
+	assert.NotNil(t, exporter)
+	assert.NotNil(t, exporter.allocCtx)
+}
+
 func TestGetFile_TaskNotCompleted(t *testing.T) {
 	svc, _ := newTestExportService(t)
 	mock := &MockExporter{
@@ -215,4 +226,20 @@ func TestGetFile_TaskNotCompleted(t *testing.T) {
 	// Try to get file immediately — task should still be pending/processing
 	_, err = svc.GetFile(taskID)
 	require.ErrorIs(t, err, ErrTaskNotCompleted)
+}
+
+func TestRegisterRoutes_ReturnsCleanup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	v1 := r.Group("/api/v1")
+
+	tmpDir := t.TempDir()
+	store := storage.NewLocalStorage(tmpDir)
+
+	cleanup := RegisterRoutes(v1, nil, store)
+	assert.NotNil(t, cleanup)
+
+	assert.NotPanics(t, func() {
+		cleanup()
+	})
 }

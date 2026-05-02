@@ -208,6 +208,13 @@ func NewChromeExporter() *ChromeExporter {
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("no-sandbox", true),
 	)
+
+	// Allow overriding the Chrome executable path via environment variable.
+	// In Alpine Docker, the binary is at /usr/bin/chromium.
+	if chromeBin := os.Getenv("CHROME_BIN"); chromeBin != "" {
+		opts = append(opts, chromedp.ExecPath(chromeBin))
+	}
+
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	return &ChromeExporter{allocCtx: allocCtx, cancel: cancel}
 }

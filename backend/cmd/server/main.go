@@ -55,7 +55,7 @@ func cookieSecure() bool {
 	return parsed
 }
 
-func setupRouter(db *gorm.DB) *gin.Engine {
+func setupRouter(db *gorm.DB) (*gin.Engine, func()) {
 	r := gin.Default()
 	r.Use(middleware.CORS(), middleware.Logger())
 
@@ -82,9 +82,9 @@ func setupRouter(db *gorm.DB) *gin.Engine {
 	parsing.RegisterRoutes(authed, db, store)
 	agent.RegisterRoutes(authed, db)
 	workbench.RegisterRoutes(authed, db)
-	render.RegisterRoutes(authed, db, store)
+	cleanup := render.RegisterRoutes(authed, db, store)
 
-	return r
+	return r, cleanup
 }
 
 func main() {
@@ -94,7 +94,8 @@ func main() {
 	db := database.Connect()
 	database.Migrate(db)
 
-	r := setupRouter(db)
+	r, cleanup := setupRouter(db)
+	defer cleanup()
 
 	log.Println("server starting on :8080")
 	if err := r.Run(":8080"); err != nil {
